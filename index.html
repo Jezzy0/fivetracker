@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FiveM Advanced Analytics Suite</title>
+    <style>
+        :root {
+            --bg-main: #060608;
+            --bg-card: #0d0d12;
+            --border-color: #1f1f27;
+            --accent: #ff3e3e;
+            --accent-hover: #e03232;
+            --text-main: #e4e4e9;
+            --text-muted: #71717a;
+            --success: #10b981;
+            --warning: #f59e0b;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1000px;
+            width: 100%;
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            border: 1px solid var(--border-color);
+        }
+
+        .header-brand {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .header-brand h1 { margin: 0; font-size: 28px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+        .header-brand span { color: var(--accent); font-family: monospace; font-size: 12px; letter-spacing: 2px; }
+
+        .search-box { display: flex; gap: 12px; margin-bottom: 30px; }
+        input[type="text"] {
+            flex: 1;
+            padding: 14px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: #14141b;
+            color: #fff;
+            font-size: 15px;
+        }
+        
+        button {
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            background-color: var(--accent);
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .loading { text-align: center; color: var(--accent); font-family: monospace; font-size: 14px; padding: 30px; display: none; }
+        .error { color: #f87171; background: rgba(248, 113, 113, 0.05); border: 1px solid rgba(248, 113, 113, 0.2); padding: 15px; border-radius: 8px; margin-bottom: 25px; display: none; }
+        
+        .server-identity-card { display: flex; gap: 20px; align-items: center; background: #14141b; padding: 20px; border-radius: 12px; border: 1px solid var(--border-color); margin-bottom: 25px; }
+        .server-logo { width: 70px; height: 70px; border-radius: 12px; background: #272732; border: 1px solid var(--border-color); object-fit: cover; }
+        .server-details { flex: 1; }
+        .server-title { font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 4px 0; }
+        .description { color: var(--text-muted); margin: 0; font-size: 13.5px; line-height: 1.5; }
+
+        .server-info { display: none; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 25px; }
+        .stat-card { background: #111116; border: 1px solid var(--border-color); padding: 16px; border-radius: 10px; }
+        .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+        .stat-value { font-size: 16px; color: #fff; font-weight: 600; }
+        
+        .interactive-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+        .ip-wrapper { flex: 2; min-width: 300px; background: #111116; padding: 16px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border-color); }
+        .ip-text { font-family: monospace; font-size: 14px; color: var(--accent); font-weight: 700; cursor: pointer; }
+
+        .btn-action { display: inline-flex; align-items: center; justify-content: center; background: var(--success); color: white; padding: 12px 20px; border-radius: 8px; font-weight: bold; text-decoration: none; font-size: 13.5px; cursor: pointer; border: none; gap: 6px;}
+        .btn-secondary { background: #272732; color: #d4d4d8; border: 1px solid var(--border-color); }
+
+        .filter-controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px; gap: 15px;}
+        .filter-input { max-width: 280px; padding: 10px 14px; background: #14141b; border: 1px solid var(--border-color); border-radius: 8px; color: white; font-size: 13.5px; width: 100%;}
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { text-align: left; padding: 14px; border-bottom: 1px solid #111116; font-size: 14px; }
+        th { background-color: #111116; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 700; }
+        
+        .ping-badge { padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; font-family: monospace;}
+        .ping-good { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+        .ping-warn { background: rgba(245, 158, 11, 0.1); color: var(--warning); }
+        
+        .id-badge { display: inline-flex; align-items: center; font-size: 11px; padding: 4px 8px; border-radius: 6px; font-weight: 600; margin-right: 6px; text-decoration: none; background: #1c1c24; color: #a1a1aa; border: 1px solid var(--border-color); }
+
+        .extra-details-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 25px; }
+        .details-box { background: #111116; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px; font-size: 13px; color: var(--text-main); }
+        .details-box strong { color: #fff; }
+
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(5px); }
+        .modal-content { background: var(--bg-card); margin: 8% auto; padding: 25px; border-radius: 14px; max-width: 550px; width: 90%; border: 1px solid var(--border-color); max-height: 65vh; display: flex; flex-direction: column; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 12px;}
+        .close-btn { font-size: 22px; cursor: pointer; color: var(--text-muted); }
+        .close-btn:hover { color: #fff; }
+        .resource-scroll { overflow-y: auto; flex: 1; padding-right: 5px; }
+        .resource-item { padding: 8px 12px; background: #14141b; margin-bottom: 6px; border-radius: 6px; font-family: monospace; font-size: 12.5px; border: 1px solid #1c1c24; color: #d4d4d8; }
+        .obfuscated-notice { background: rgba(245, 158, 11, 0.06); border: 1px solid rgba(245, 158, 11, 0.2); padding: 12px; border-radius: 8px; color: var(--warning); font-size: 13px; line-height: 1.4; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-brand">
+        <h1>FiveM Suite Realtime Intelligence</h1>
+        <span>DEEP ENVIRONMENT FINGERPRINTING & AUDITS</span>
+    </div>
+
+    <div class="search-box">
+        <input type="text" id="joinInput" placeholder="Enter Connect Key (e.g., abcde1) or Link...">
+        <button onclick="lookupServer()">Initialize Telemetry Scan</button>
+    </div>
+
+    <div id="loadingMessage" class="loading">🛰️ PERFORMING CYBER RECONNAISSANCE & DEEP MATRIX AUDIT...</div>
+    <div id="errorMessage" class="error"></div>
+
+    <div id="serverInfo" class="server-info">
+        
+        <div class="server-identity-card">
+            <img id="serverIcon" class="server-logo" src="" alt="Server Emblem" style="display:none;">
+            <div class="server-details">
+                <div id="serverName" class="server-title">Operational Node</div>
+                <div id="serverDesc" class="description">-</div>
+            </div>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Roster Capacity</div>
+                <div id="mPlayers" class="stat-value">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Engine Build Profile</div>
+                <div id="mBuild" class="stat-value">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Geographic Region</div>
+                <div id="mLocation" class="stat-value">-</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Active Core Engine</div>
+                <div id="mFramework" class="stat-value" style="color: #60a5fa;">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Average User Ping</div>
+                <div id="mAvgPing" class="stat-value" style="color: #a78bfa;">-</div>
+            </div>
+        </div>
+
+        <div class="interactive-row">
+            <div class="ip-wrapper">
+                <div>
+                    <span style="color: var(--text-muted); font-size: 11px; text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 2px;">Resolved Server Address</span>
+                    <span id="displayIp" class="ip-text" onclick="copyText(this.innerText, 'IP')">0.0.0.0:0</span>
+                </div>
+                <a id="connectLink" href="#" class="btn-action">⚡ Connect Client</a>
+            </div>
+            <button class="btn-action btn-secondary" onclick="toggleResourcesModal()">📦 Resource Inspection (<span id="resourceCount">0</span>)</button>
+        </div>
+
+        <div class="extra-details-row">
+            <div class="details-box">🌐 <strong>Infrastructure ISP:</strong> <span id="mIsp" style="color: #d4d4d8;">-</span></div>
+            <div class="details-box">🛡️ <strong>Security / Artifact Patch:</strong> <span id="mSecurity" style="color: var(--success); font-weight: bold;">-</span></div>
+        </div>
+
+        <div style="margin-top: 30px;" class="filter-controls">
+            <h3 style="color:#fff; margin: 0; font-size: 18px;">Active Player Index Matrix</h3>
+            <input type="text" id="rosterFilter" class="filter-input" onkeyup="filterRoster()" placeholder="Search Name, ID, Hex...">
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">ID</th>
+                        <th style="width: 40%;">User Signature Alias</th>
+                        <th style="width: 18%;">Session Age</th>
+                        <th style="width: 22%;">Identifiers</th>
+                        <th style="width: 12%;">Latency</th>
+                    </tr>
+                </thead>
+                <tbody id="playerList"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="resourceModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 style="margin:0; font-size: 18px; color: #fff;">Server Resource Discovery</h3>
+            <span class="close-btn" onclick="toggleResourcesModal()">&times;</span>
+        </div>
+        <div id="obfuscatedNotice" class="obfuscated-notice">
+            ⚠️ <strong>Heuristic Engine Engaged:</strong> This host has locked down their raw `/dynamic.json` resource list. The tracker evaluated system variables, banner logs, and tags to extract active scripts passively.
+        </div>
+        <div class="resource-scroll" id="resourceContainer"></div>
+    </div>
+</div>
+
+<script>
+    let globalPlayerData = [];
+    let completeResourceList = [];
+    let serverIsObfuscated = false;
+
+    async function lookupServer() {
+        const inputString = document.getElementById('joinInput').value.trim();
+        const errorDiv = document.getElementById('errorMessage');
+        const infoDiv = document.getElementById('serverInfo');
+        const loadingDiv = document.getElementById('loadingMessage');
+
+        errorDiv.style.display = 'none';
+        infoDiv.style.display = 'none';
+        loadingDiv.style.display = 'block';
+
+        try {
+            const response = await fetch(`/api/track/${encodeURIComponent(inputString)}`);
+            const data = await response.json();
+            loadingDiv.style.display = 'none';
+
+            if (!response.ok) throw new Error(data.error || "System tracking endpoint fault.");
+
+            document.getElementById('serverName').innerText = data.name.replace(/\^[0-9]/g, '');
+            document.getElementById('serverDesc').innerText = data.projectDesc.replace(/\^[0-9]/g, '');
+            document.getElementById('mPlayers').innerText = `${data.clients} / ${data.maxClients}`;
+            document.getElementById('mBuild').innerText = `b${data.gameBuild}`;
+            document.getElementById('mLocation').innerText = data.location;
+            document.getElementById('mFramework').innerText = data.framework;
+            document.getElementById('mAvgPing').innerText = `${data.avgPing} ms`;
+            document.getElementById('mIsp').innerText = data.isp;
+            
+            const secElement = document.getElementById('mSecurity');
+            secElement.innerText = data.securityStatus;
+            secElement.style.color = data.securityStatus.includes('Vulnerable') ? 'var(--accent)' : 'var(--success)';
+
+            document.getElementById('displayIp').innerText = data.ip;
+            document.getElementById('connectLink').href = `fivem://connect/${data.ip}`;
+            document.getElementById('resourceCount').innerText = data.scriptCount;
+            
+            serverIsObfuscated = data.isObfuscated;
+            completeResourceList = data.resourcesList || [];
+            globalPlayerData = data.players || [];
+            
+            const iconImg = document.getElementById('serverIcon');
+            if (data.serverIcon) {
+                iconImg.src = data.serverIcon;
+                iconImg.style.display = 'block';
+            } else {
+                iconImg.style.display = 'none';
+            }
+
+            buildRosterTable(globalPlayerData);
+            infoDiv.style.display = 'block';
+        } catch (err) {
+            loadingDiv.style.display = 'none';
+            errorDiv.innerText = err.message;
+            errorDiv.style.display = 'block';
+        }
+    }
+
+    function buildRosterTable(players) {
+        const playerListTable = document.getElementById('playerList');
+        playerListTable.innerHTML = '';
+
+        if (players.length === 0) {
+            playerListTable.innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-muted); padding:30px;">No current active players connected to server node.</td></tr>`;
+            return;
+        }
+
+        players.forEach(p => {
+            let idBadges = '';
+            if (p.discord) idBadges += `<span class="id-badge">💬 Discord</span>`;
+            if (p.steam) idBadges += `<span class="id-badge">🎮 Steam</span>`;
+            if (!idBadges) idBadges = `<span style="color: #3f3f46; font-size: 12px;">Clean</span>`;
+
+            const pingClass = p.ping < 60 ? 'ping-good' : 'ping-warn';
+
+            playerListTable.innerHTML += `<tr>
+                <td><strong>#${p.id}</strong></td>
+                <td><span style="color:#fff; font-weight: 600;">${escapeHtml(p.name)}</span></td>
+                <td style="color: var(--success); font-weight: 500;">⏱️ ${p.playTime}</td>
+                <td>${idBadges}</td>
+                <td><span class="ping-badge ${pingClass}">${p.ping} ms</span></td>
+            </tr>`;
+        });
+    }
+
+    function filterRoster() {
+        const query = document.getElementById('rosterFilter').value.toLowerCase().trim();
+        if(!query) {
+            buildRosterTable(globalPlayerData);
+            return;
+        }
+        const filtered = globalPlayerData.filter(p => p.name.toLowerCase().includes(query) || p.id.toString() === query);
+        buildRosterTable(filtered);
+    }
+
+    function toggleResourcesModal() {
+        const modal = document.getElementById('resourceModal');
+        const container = document.getElementById('resourceContainer');
+        const notice = document.getElementById('obfuscatedNotice');
+        
+        if(modal.style.display === 'block') {
+            modal.style.display = 'none';
+        } else {
+            container.innerHTML = '';
+            notice.style.display = serverIsObfuscated ? 'block' : 'none';
+            
+            if (completeResourceList.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted); text-align: center; padding: 10px;">No matching scripts found in tag structures.</p>';
+            } else {
+                completeResourceList.forEach(res => {
+                    const icon = res.includes('(Inferred') ? '🔍' : '⚙️';
+                    container.innerHTML += `<div class="resource-item">${icon} ${escapeHtml(res)}</div>`;
+                });
+            }
+            modal.style.display = 'block';
+        }
+    }
+
+    function copyText(text, label) {
+        navigator.clipboard.writeText(text);
+        alert(`${label} copied to clipboard!`);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    window.onclick = function(event) {
+        const modal = document.getElementById('resourceModal');
+        if (event.target == modal) modal.style.display = "none";
+    }
+</script>
+
+</body>
+</html>
