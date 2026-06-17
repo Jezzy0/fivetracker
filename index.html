@@ -175,6 +175,7 @@
                 </div>
                 <a id="connectLink" href="#" class="btn-action">⚡ Connect Client</a>
             </div>
+            <button class="btn-action btn-secondary" onclick="copyShareableLink()">🔗 Copy Link</button>
             <button class="btn-action btn-secondary" onclick="toggleResourcesModal()">📦 Resource Inspection (<span id="resourceCount">0</span>)</button>
         </div>
 
@@ -222,6 +223,16 @@
     let globalPlayerData = [];
     let completeResourceList = [];
     let serverIsObfuscated = false;
+
+    // Check for server code in URL on page load
+    window.addEventListener('DOMContentLoaded', function() {
+        const params = new URLSearchParams(window.location.search);
+        const serverCode = params.get('code');
+        if (serverCode) {
+            document.getElementById('joinInput').value = serverCode;
+            lookupServer();
+        }
+    });
 
     async function lookupServer() {
         const inputString = document.getElementById('joinInput').value.trim();
@@ -336,6 +347,17 @@
             }
             modal.style.display = 'block';
         }
+    }
+
+    function copyShareableLink() {
+        const serverCode = document.getElementById('joinInput').value.trim();
+        if (!serverCode) {
+            alert('Please enter a server code or link first!');
+            return;
+        }
+        const shareableUrl = `${window.location.origin}${window.location.pathname}?code=${encodeURIComponent(serverCode)}`;
+        navigator.clipboard.writeText(shareableUrl);
+        alert('Shareable link copied to clipboard!');
     }
 
     function copyText(text, label) {
