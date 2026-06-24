@@ -40,6 +40,145 @@ app.use(express.static(__dirname));
 
 const serverSessionCache = {};
 
+function normalizeSteamIdentifier(identifier) {
+    if (!identifier) return null;
+
+    const raw = String(identifier).trim();
+    if (!raw) return null;
+
+    if (/steamcommunity\.com\/(profiles|id)\//i.test(raw)) {
+        const match = raw.match(/steamcommunity\.com\/(?:profiles\/|id\/)([^/?#]+)/i);
+        if (match) {
+            return match[1];
+        }
+    }
+
+    const cleaned = raw
+        .replace(/^steam(?:id)?(?:64)?:/i, '')
+        .replace(/^steam:/i, '')
+        .replace(/^steam_/i, '')
+        .replace(/^\[U:/i, '')
+        .replace(/\]$/i, '')
+        .trim();
+
+    if (!cleaned) return null;
+
+    const profileMatch = cleaned.match(/steamcommunity\.com\/(?:profiles\/|id\/)([^/?#]+)/i);
+    if (profileMatch) {
+        return profileMatch[1];
+    }
+
+    const steamId3Match = cleaned.match(/^\d+:(\d+)$/);
+    if (steamId3Match) {
+        const accountId = Number(steamId3Match[1]);
+        return String(76561197960265728n + 2n * BigInt(accountId) + 1n);
+    }
+
+    const steamId2Match = cleaned.match(/^([0-1]):([0-9]+)$/);
+    if (steamId2Match) {
+        const authServer = Number(steamId2Match[1]);
+        const accountId = Number(steamId2Match[2]);
+        return String(76561197960265728n + 2n * BigInt(accountId) + BigInt(authServer === 1 ? 1 : 0));
+    }
+
+    const steamId3LegacyMatch = cleaned.match(/^U:(\d+):(\d+)$/i);
+    if (steamId3LegacyMatch) {
+        const accountId = Number(steamId3LegacyMatch[2]);
+        return String(76561197960265728n + 2n * BigInt(accountId) + 1n);
+    }
+
+    if (/^\d+$/.test(cleaned)) {
+        return cleaned;
+    }
+
+    if (/^0x/i.test(cleaned)) {
+        try {
+            return BigInt(cleaned).toString();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    if (/^[0-9a-fA-F]+$/.test(cleaned)) {
+        try {
+            return BigInt(`0x${cleaned}`).toString();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    return null;
+}
+
+async function buildSteamProfileUrl(identifiers = [], playerName = '') {
+    const candidates = [];
+
+    if (Array.isArray(identifiers)) {
+        candidates.push(...identifiers);
+    } else if (identifiers && typeof identifiers === 'object') {
+        Object.values(identifiers).forEach((value) => {
+            if (Array.isArray(value)) {
+                candidates.push(...value);
+            } else if (value !== null && value !== undefined) {
+                candidates.push(value);
+            }
+        });
+    } else if (identifiers) {
+        candidates.push(identifiers);
+    }
+
+    for (const identifier of candidates) {
+        if (typeof identifier !== 'string') continue;
+
+        const value = identifier.trim();
+        if (!value) continue;
+
+        if (/steamcommunity\.com\/(profiles|id)\//i.test(value)) {
+            const match = value.match(/steamcommunity\.com\/(?:profiles\/|id\/)([^/?#]+)/i);
+            if (match) {
+                const profilePart = match[1];
+                if (/^\d+$/.test(profilePart)) {
+                    return `https://steamcommunity.com/profiles/${profilePart}`;
+                }
+                return `https://steamcommunity.com/id/${profilePart}`;
+            }
+        }
+
+        const normalized = normalizeSteamIdentifier(value);
+        if (normalized) {
+            if (/^\d+$/.test(normalized)) {
+                return `https://steamcommunity.com/profiles/${normalized}`;
+            }
+            return `https://steamcommunity.com/id/${normalized}`;
+        }
+    }
+
+    if (playerName && typeof playerName === 'string' && playerName.trim()) {
+        const searchTerm = playerName.trim();
+        try {
+            const response = await axios.get(`https://steamcommunity.com/search/?text=${encodeURIComponent(searchTerm)}`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' },
+                timeout: 6000
+            });
+            const html = response.data || '';
+            const profileMatch = html.match(/href="\/(profiles|id)\/([^"/?#]+)"/i);
+            if (profileMatch) {
+                const profilePart = profileMatch[2];
+                if (/^\d+$/.test(profilePart)) {
+                    return `https://steamcommunity.com/profiles/${profilePart}`;
+                }
+                return `https://steamcommunity.com/id/${profilePart}`;
+            }
+        } catch (error) {
+            // Fall back to the Steam search page when resolution fails.
+        }
+
+        return `https://steamcommunity.com/search/?text=${encodeURIComponent(searchTerm)}`;
+    }
+
+    return null;
+}
+
 app.get('/api/track/:input', async (req, res) => {
     let userInput = req.params.input.trim();
 
@@ -90,7 +229,7 @@ app.get('/api/track/:input', async (req, res) => {
 
         // Calculate average player latency across the board
         let totalPing = 0;
-        const mappedPlayers = activePlayers.map(p => {
+        const mappedPlayers = await Promise.all(activePlayers.map(async (p) => {
             const playerUniqueKey = `${p.id}-${p.name}`;
             updatedCache[playerUniqueKey] = currentServerCache[playerUniqueKey] || currentTime;
             totalPing += (p.ping || 0);
@@ -106,11 +245,10 @@ app.get('/api/track/:input', async (req, res) => {
             }
 
             const ids = Array.isArray(p.identifiers) ? p.identifiers : [];
-            const steamHex = ids.find(i => i.startsWith('steam:'))?.replace('steam:', '') || null;
-            let steam64 = null;
-            if (steamHex) {
-                try { steam64 = BigInt("0x" + steamHex).toString(); } catch(e){}
-            }
+            const steamProfileUrl = await buildSteamProfileUrl(ids, p.name || '');
+            const steam64 = steamProfileUrl && /^https:\/\/steamcommunity\.com\/profiles\//i.test(steamProfileUrl)
+                ? steamProfileUrl.split('/').filter(Boolean).pop()
+                : null;
 
             return {
                 id: p.id || 0,
@@ -118,9 +256,10 @@ app.get('/api/track/:input', async (req, res) => {
                 ping: p.ping || 0,
                 playTime: playTimeStr,
                 discord: ids.find(i => i.startsWith('discord:'))?.replace('discord:', '') || null,
-                steam: steam64
+                steam: steam64,
+                steamProfileUrl: steamProfileUrl
             };
-        });
+        }));
 
         serverSessionCache[userInput] = updatedCache;
         const avgNetworkPing = activePlayers.length > 0 ? Math.round(totalPing / activePlayers.length) : 0;

@@ -301,7 +301,13 @@
         players.forEach(p => {
             let idBadges = '';
             if (p.discord) idBadges += `<span class="id-badge">💬 Discord</span>`;
-            if (p.steam) idBadges += `<span class="id-badge">🎮 Steam</span>`;
+            if (p.steamProfileUrl) {
+                const safeSteamUrl = String(p.steamProfileUrl).trim();
+                idBadges += `<a class="id-badge" href="${safeSteamUrl}" target="_blank" rel="noopener noreferrer" title="Open Steam profile">🎮 Steam</a>`;
+            } else if (p.steam) {
+                const steamUrl = `https://steamcommunity.com/profiles/${encodeURIComponent(p.steam)}`;
+                idBadges += `<a class="id-badge" href="${steamUrl}" target="_blank" rel="noopener noreferrer" title="Open Steam profile">🎮 Steam</a>`;
+            }
             if (!idBadges) idBadges = `<span style="color: #3f3f46; font-size: 12px;">Clean</span>`;
 
             const pingClass = p.ping < 60 ? 'ping-good' : 'ping-warn';
